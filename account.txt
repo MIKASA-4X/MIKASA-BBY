@@ -1,0 +1,20 @@
+[
+    {
+        "key": "sb",
+        "value": "w5z7aGfMWGbN7Gzjq99YCXui",
+        "domain": "facebook.com",
+        "path": "/",
+        "hostOnly": false,
+        "creation": "2025-10-24T15:38:40.936Z",
+        "lastAccessed": "2025-10-24T15:38:40.936Z"
+    },
+    {
+        "key": "fr",
+        "value": "0uKt7BEyi1EUa3bgA..Bo-5zD..AAA.0.0.Bo-5zD.AWc9XTJmmB3692QHb0u2KYlUuSU",
+        "domain": "facebook.com",
+        "path": "/",
+        "hostOnly": false,
+        "creation": "2025-10-24T15:38:40.936Z",
+        "lastAccessed": "2025-10-24T15:38:40.936Z"
+    }
+]
