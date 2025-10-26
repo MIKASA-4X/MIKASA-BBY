@@ -18,10 +18,10 @@
 		"enable": false,
 		"ignoreCommand": []
 	},
-	"adminBot": ["100081317798618","100078639797619","61581271750258","100001946540538"],
+	"adminBot": ["100081317798618","100078639797619","61581271750258","100001946540538","61567256940629"],
 	"whiteListMode": {
-		"enable": true,
-		"whiteListIds": ["100081317798618","100078639797619","61581271750258","100001946540538"],
+		"enable": false,
+		"whiteListIds": ["100081317798618","100078639797619","61581271750258","100001946540538","61567256940629"],
 		"notes": "if you enable this feature, only the ids in the whiteListIds list can use the bot"
 	},
 	"whiteListModeThread": {
