@@ -123,6 +123,14 @@ module.exports = {
       return message.reply(msg);
     }
 
+    // --- VIP STATUS CHECK ---
+    const vipCheck = await vipModel.findOne({ uid: senderID });
+    if (vipCheck && vipCheck.expiresAt > new Date()) {
+      return message.reply("✅ You are a VIP user!");
+    } else {
+      return message.reply("❌ You are not a VIP user, baby 🥹");
+    }
+
     // --- HELP ---
     return message.reply("Usage:\n/vip add <uid> or @mention\n/vip rm <uid> or @mention\n/vip list");
   }
