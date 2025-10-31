@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
-const nullAndUndefined = [undefined, null];
+const fs = require("fs-extra");
 
-// VIP Model (MongoDB)
+// MongoDB VIP Model
 const vipUserSchema = new mongoose.Schema({
   uid: { type: String, required: true, unique: true },
   expiresAt: { type: Date, required: true }
@@ -12,17 +12,20 @@ function getType(obj) {
   return Object.prototype.toString.call(obj).slice(8, -1);
 }
 
-// -------- getRole async: supports admin, group admin, VIP --------
+// Async getRole: adminBot=2, adminBox=1, VIP=4, normal=0
 async function getRole(threadData, senderID) {
   const adminBot = global.GoatBot.config.adminBot || [];
   if (!senderID) return 0;
-  const adminBox = threadData ? threadData.adminIDs || [] : [];
+  const adminBox = threadData?.adminIDs || [];
   if (adminBot.includes(senderID)) return 2;
   if (adminBox.includes(senderID)) return 1;
-  // VIP CHECK (role 4)
+
+  // VIP check (MongoDB)
   try {
-    const vipInfo = await vipModel.findOne({ uid: senderID });
-    if (vipInfo && new Date(vipInfo.expiresAt) > new Date()) return 4;
+    if (senderID) {
+      const vipInfo = await vipModel.findOne({ uid: senderID });
+      if (vipInfo && new Date(vipInfo.expiresAt) > new Date()) return 4;
+    }
   } catch (err) {}
   return 0;
 }
@@ -50,13 +53,11 @@ function getRoleConfig(utils, command, isGroup, threadData, commandName) {
   let roleConfig;
   if (utils.isNumber(command.config.role)) {
     roleConfig = { onStart: command.config.role };
-  }
-  else if (typeof command.config.role == "object" && !Array.isArray(command.config.role)) {
+  } else if (typeof command.config.role == "object" && !Array.isArray(command.config.role)) {
     if (!command.config.role.onStart)
       command.config.role.onStart = 0;
     roleConfig = command.config.role;
-  }
-  else {
+  } else {
     roleConfig = { onStart: 0 };
   }
   if (isGroup)
@@ -75,7 +76,7 @@ function isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, 
 
   // check if user banned
   const infoBannedUser = userData.banned;
-  if (infoBannedUser.status == true) {
+  if (infoBannedUser && infoBannedUser.status == true) {
     const { reason, date } = infoBannedUser;
     if (hideNotiMessage.userBanned == false)
       message.reply(getText("userBanned", reason, date, senderID, lang));
@@ -108,7 +109,7 @@ function isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, 
 
     // check if thread banned
     const infoBannedThread = threadData.banned;
-    if (infoBannedThread.status == true) {
+    if (infoBannedThread && infoBannedThread.status == true) {
       const { reason, date } = infoBannedThread;
       if (hideNotiMessage.threadBanned == false)
         message.reply(getText("threadBanned", reason, date, threadID, lang));
@@ -123,7 +124,6 @@ function createGetText2(langCode, pathCustomLang, prefix, command) {
   const commandName = command.config.name;
   let customLang = {};
   let getText2 = () => { };
-  const fs = require("fs-extra");
   if (fs.existsSync(pathCustomLang))
     customLang = require(pathCustomLang)[commandName]?.text || {};
   if (command.langs || customLang || {}) {
@@ -142,22 +142,30 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
   return async function (event, message) {
     const { utils, client, GoatBot } = global;
 
-    // ====== Example: Get needed variables from event/context =======
+    // ====== Get Needed Variables Safely ======
     const threadID = event.threadID;
     const senderID = event.senderID;
-    const isGroup = event.isGroup;
-    const langCode = "en"; // adjust as per your bot config
+    const isGroup = event.isGroup || false;
+    const langCode = "en"; // Change if your bot supports multi-lang
+
+    // ThreadData & UserData always defined!
+    let threadData = {};
+    let userData = {};
+    try {
+      threadData = await threadsData.get(threadID) || { adminIDs: [], data: {}, banned: {} };
+    } catch (e) {
+      threadData = { adminIDs: [], data: {}, banned: {} };
+    }
+    try {
+      userData = senderID ? (await usersData.get(senderID)) : {};
+      if (!userData) userData = {};
+      if (!userData.banned) userData.banned = {};
+    } catch (e) {
+      userData = { banned: {} };
+    }
+
+    // Command name and object
     const commandName = message.commandName || event.commandName || "";
-    const hideNotiMessage = global.GoatBot?.config?.hideNotiMessage || {};
-
-    // Always get threadData up front so you can pass to getRole and others
-    const threadData = await threadsData.get(threadID) || { adminIDs: [], data: {}, banned: {} };
-    // For userData, if your bot uses usersData for banned/other info
-    const userData = await usersData.get(senderID) || { banned: {} };
-
-    // Suppose you already have command loaded (from your commands map)
-    // const command = GoatBot.commands.get(commandName); // <-- Example
-    // If you have a dynamic command loader, adjust as needed
     let command = null;
     if (client && client.currentCommand) {
       command = client.currentCommand;
@@ -165,8 +173,7 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
       command = GoatBot.commands.get(commandName);
     }
 
-    // ======= PERMISSION CHECK (VIP, ADMIN, etc.) =======
-    // Only run permission checks if a command is found
+    // ====== PERMISSION CHECK (VIP, ADMIN, etc.) ======
     if (command) {
       const role = await getRole(threadData, senderID);
       const roleConfig = getRoleConfig(utils, command, isGroup, threadData, commandName);
@@ -176,6 +183,7 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
         if (needRole == 4) {
           return await message.reply("You are not vip user baby 🥹");
         }
+        const hideNotiMessage = global.GoatBot?.config?.hideNotiMessage || {};
         if (!hideNotiMessage.needRoleToUseCmd) {
           if (needRole == 1)
             return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "onlyAdmin", commandName));
@@ -186,15 +194,11 @@ module.exports = function (api, threadModel, userModel, dashBoardModel, globalMo
       }
     }
 
-    // ======= IS BANNED/ONLY ADMIN CHECK (optionally run elsewhere) =======
+    // ====== IS BANNED/ONLY ADMIN CHECK ======
     // if (isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, commandName, message, langCode)) return;
 
-    // ======= Rest of your event logic... =======
-    // onStart / onChat / onReply / onReaction / etc...
-
-    // Example: If you have a function for each event type, call here
-    // if (command && command.onStart) await command.onStart({ event, message, ... });
-
-    // You must fill in the rest of your business logic as per your bot's requirements.
+    // ====== Your event logic here (onStart/onChat/onReply/onReaction etc.) ======
+    // Example: if (command && command.onStart) await command.onStart({ event, message, ... });
+    // Fill in your own bot logic as needed.
   };
 };
