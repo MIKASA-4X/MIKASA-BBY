@@ -23,14 +23,11 @@ module.exports = {
     const senderID = event.senderID;
     const subcommand = (args[0] || "").toLowerCase();
 
-    // Helper: Check if sender is admin or bot admin
+    // Helper: Check if sender is bot admin
     let role = 0;
     try {
-      const threadData = await global.threadsData.get(event.threadID) || {};
       const adminBot = global.GoatBot?.config?.adminBot || [];
-      const adminBox = threadData.adminIDs || [];
       if (adminBot.includes(senderID)) role = 2;
-      else if (adminBox.includes(senderID)) role = 1;
     } catch (e) {}
 
     // --- Helper to extract UID from arg or @mention ---
@@ -46,8 +43,8 @@ module.exports = {
 
     // --- ADD VIP ---
     if (subcommand === "add") {
-      if (role < 1)
-        return message.reply("❌ Only group admin or bot admin can add VIP users!");
+      if (role < 2)
+        return message.reply("❌ Only bot admin can add VIP users!");
 
       // Try getting UID from @mention or direct UID
       const uid = getUidFromArgOrMention(args[1], event.mentions);
@@ -76,8 +73,8 @@ module.exports = {
 
     // --- REMOVE VIP ---
     if (subcommand === "rm" || subcommand === "remove") {
-      if (role < 1)
-        return message.reply("❌ Only group admin or bot admin can remove VIP users!");
+      if (role < 2)
+        return message.reply("❌ Only bot admin can remove VIP users!");
 
       const uid = getUidFromArgOrMention(args[1], event.mentions);
       if (!uid) return message.reply("Please provide a UID or @mention to remove from VIP.");
@@ -93,7 +90,7 @@ module.exports = {
       return message.reply(`❌ ${name} (${uid}) has been removed from VIP list.`);
     }
 
-    // --- LIST VIPs (anyone can use) ---
+    // --- LIST VIPs (Everyone can use this) ---
     if (subcommand === "list") {
       const vips = await vipModel.find({});
       if (!vips.length) return message.reply("No VIPs found!");
@@ -118,9 +115,9 @@ module.exports = {
         const expireStr = vip.expiresAt.toLocaleDateString();
         const validityMs = vip.expiresAt - now;
         const validityDays = Math.max(0, Math.ceil(validityMs / (1000 * 60 * 60 * 24)));
-        const validMsg = validityMs > 0 ? `${validityDays} দিন বাকি` : "Expired";
+        const validMsg = validityMs > 0 ? `${validityDays} days left` : "Expired";
 
-        msg += `${index}. ${name} (${vip.uid})\n   ➤ যোগ হয়েছে: ${addedAtStr}\n   ➤ মেয়াদ শেষ: ${expireStr}\n   ➤ বৈধতা: ${validMsg}\n`;
+        msg += `${index}. ${name} (${vip.uid})\n   ➤ Added: ${addedAtStr}\n   ➤ Expires: ${expireStr}\n   ➤ Validity: ${validMsg}\n`;
         index++;
       }
       return message.reply(msg);
