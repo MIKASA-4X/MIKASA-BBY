@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const nullAndUndefined = [undefined, null];
 
-// Your VIP user schema/model (change if your schema/model name is different)
+// VIP Model (MongoDB)
 const vipUserSchema = new mongoose.Schema({
   uid: { type: String, required: true, unique: true },
   expiresAt: { type: Date, required: true }
@@ -12,20 +12,17 @@ function getType(obj) {
   return Object.prototype.toString.call(obj).slice(8, -1);
 }
 
-// -------- getRole now async --------
+// -------- getRole async: supports admin, group admin, VIP --------
 async function getRole(threadData, senderID) {
   const adminBot = global.GoatBot.config.adminBot || [];
   if (!senderID) return 0;
   const adminBox = threadData ? threadData.adminIDs || [] : [];
   if (adminBot.includes(senderID)) return 2;
   if (adminBox.includes(senderID)) return 1;
-
   // VIP CHECK (role 4)
   try {
     const vipInfo = await vipModel.findOne({ uid: senderID });
-    if (vipInfo && new Date(vipInfo.expiresAt) > new Date()) {
-      return 4; // VIP
-    }
+    if (vipInfo && new Date(vipInfo.expiresAt) > new Date()) return 4;
   } catch (err) {}
   return 0;
 }
@@ -52,9 +49,7 @@ function replaceShortcutInLang(text, prefix, commandName) {
 function getRoleConfig(utils, command, isGroup, threadData, commandName) {
   let roleConfig;
   if (utils.isNumber(command.config.role)) {
-    roleConfig = {
-      onStart: command.config.role
-    };
+    roleConfig = { onStart: command.config.role };
   }
   else if (typeof command.config.role == "object" && !Array.isArray(command.config.role)) {
     if (!command.config.role.onStart)
@@ -62,13 +57,10 @@ function getRoleConfig(utils, command, isGroup, threadData, commandName) {
     roleConfig = command.config.role;
   }
   else {
-    roleConfig = {
-      onStart: 0
-    };
+    roleConfig = { onStart: 0 };
   }
-
   if (isGroup)
-    roleConfig.onStart = threadData.data.setRole?.[commandName] ?? roleConfig.onStart;
+    roleConfig.onStart = threadData.data?.setRole?.[commandName] ?? roleConfig.onStart;
 
   for (const key of ["onChat", "onStart", "onReaction", "onReply"]) {
     if (roleConfig[key] == undefined)
@@ -104,7 +96,7 @@ function isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, 
   // ==========    Check Thread    ========== //
   if (isGroup == true) {
     if (
-      threadData.data.onlyAdminBox === true
+      threadData.data?.onlyAdminBox === true
       && !threadData.adminIDs.includes(senderID)
       && !(threadData.data.ignoreCommanToOnlyAdminBox || []).includes(commandName)
     ) {
@@ -149,30 +141,60 @@ function createGetText2(langCode, pathCustomLang, prefix, command) {
 module.exports = function (api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData) {
   return async function (event, message) {
     const { utils, client, GoatBot } = global;
-    // ... আপনি যেমন command, args, role, ইত্যাদি বের করেন
 
-    // উদাহরণ permission-check অংশ (onStart, onChat, ইত্যাদি):
-    // ধরে নিচ্ছি: command, commandName, threadData, senderID, isGroup, langCode, hideNotiMessage এগুলো আগেই ডিক্লেয়ার আছে
+    // ====== Example: Get needed variables from event/context =======
+    const threadID = event.threadID;
+    const senderID = event.senderID;
+    const isGroup = event.isGroup;
+    const langCode = "en"; // adjust as per your bot config
+    const commandName = message.commandName || event.commandName || "";
+    const hideNotiMessage = global.GoatBot?.config?.hideNotiMessage || {};
 
-    // ... (আপনার আগের কোড)
-    // এখানে role async নিতে হবে
-    const role = await getRole(threadData, senderID);
-    const roleConfig = getRoleConfig(utils, command, isGroup, threadData, commandName);
-    const needRole = roleConfig.onStart; // বা onChat/onReply/onReaction যেখানে প্রয়োজন
+    // Always get threadData up front so you can pass to getRole and others
+    const threadData = await threadsData.get(threadID) || { adminIDs: [], data: {}, banned: {} };
+    // For userData, if your bot uses usersData for banned/other info
+    const userData = await usersData.get(senderID) || { banned: {} };
 
-    if (needRole > role) {
-      if (needRole == 4) {
-        return await message.reply("You are not vip user baby 🥹");
-      }
-      if (!hideNotiMessage.needRoleToUseCmd) {
-        if (needRole == 1)
-          return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "onlyAdmin", commandName));
-        else if (needRole == 2)
-          return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "onlyAdminBot2", commandName));
-      }
-      return true;
+    // Suppose you already have command loaded (from your commands map)
+    // const command = GoatBot.commands.get(commandName); // <-- Example
+    // If you have a dynamic command loader, adjust as needed
+    let command = null;
+    if (client && client.currentCommand) {
+      command = client.currentCommand;
+    } else if (GoatBot && GoatBot.commands && commandName) {
+      command = GoatBot.commands.get(commandName);
     }
 
-    // ... (rest of your event handler logic)
+    // ======= PERMISSION CHECK (VIP, ADMIN, etc.) =======
+    // Only run permission checks if a command is found
+    if (command) {
+      const role = await getRole(threadData, senderID);
+      const roleConfig = getRoleConfig(utils, command, isGroup, threadData, commandName);
+      const needRole = roleConfig.onStart;
+
+      if (needRole > role) {
+        if (needRole == 4) {
+          return await message.reply("You are not vip user baby 🥹");
+        }
+        if (!hideNotiMessage.needRoleToUseCmd) {
+          if (needRole == 1)
+            return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "onlyAdmin", commandName));
+          else if (needRole == 2)
+            return await message.reply(utils.getText({ lang: langCode, head: "handlerEvents" }, "onlyAdminBot2", commandName));
+        }
+        return true;
+      }
+    }
+
+    // ======= IS BANNED/ONLY ADMIN CHECK (optionally run elsewhere) =======
+    // if (isBannedOrOnlyAdmin(userData, threadData, senderID, threadID, isGroup, commandName, message, langCode)) return;
+
+    // ======= Rest of your event logic... =======
+    // onStart / onChat / onReply / onReaction / etc...
+
+    // Example: If you have a function for each event type, call here
+    // if (command && command.onStart) await command.onStart({ event, message, ... });
+
+    // You must fill in the rest of your business logic as per your bot's requirements.
   };
 };
