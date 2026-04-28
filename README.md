@@ -267,8 +267,8 @@ docker run -d --name mikasa-bby -p 3000:3000 mikasa-bby
 
 <div align="center">
 
-<a href="https://telegram.me/Priyanshrajput"><img src="https://img.shields.io/badge/Telegram_Hive-Support-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white"/></a>
-<a href="https://www.facebook.com/priyanshu.rajput.official"><img src="https://img.shields.io/badge/Facebook_Signal-Contact-1877F2?style=for-the-badge&logo=facebook&logoColor=white"/></a>
+<a href="https://telegram.me/@S41FUL0"><img src="https://img.shields.io/badge/Telegram_Hive-Support-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white"/></a>
+<a href="https://www.facebook.com/100081317798618"><img src="https://img.shields.io/badge/Facebook_Signal-Contact-1877F2?style=for-the-badge&logo=facebook&logoColor=white"/></a>
 <a href="https://github.com/MIKASA-4X"><img src="https://img.shields.io/badge/GitHub_Expanse-MIKASA--4X-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
 
 </div>
